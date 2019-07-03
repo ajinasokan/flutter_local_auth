@@ -5,8 +5,10 @@
 package io.flutter.plugins.localauth;
 
 import android.app.Activity;
+import android.hardware.fingerprint.FingerprintManager;
+import android.os.Build;
+
 import androidx.core.hardware.fingerprint.FingerprintManagerCompat;
-import androidx.fragment.app.FragmentActivity;
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
@@ -17,7 +19,6 @@ import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /** LocalAuthPlugin */
-@SuppressWarnings("deprecation")
 public class LocalAuthPlugin implements MethodCallHandler {
   private final Registrar registrar;
   private final AtomicBoolean authInProgress = new AtomicBoolean(false);
@@ -44,23 +45,14 @@ public class LocalAuthPlugin implements MethodCallHandler {
         result.error("auth_in_progress", "Authentication in progress", null);
         return;
       }
-
       Activity activity = registrar.activity();
       if (activity == null || activity.isFinishing()) {
         result.error("no_activity", "local_auth plugin requires a foreground activity", null);
         return;
       }
-
-      if (!(activity instanceof FragmentActivity)) {
-        result.error(
-            "no_fragment_activity",
-            "local_auth plugin requires activity to be a FragmentActivity.",
-            null);
-        return;
-      }
       AuthenticationHelper authenticationHelper =
           new AuthenticationHelper(
-              (FragmentActivity) activity,
+              activity,
               call,
               new AuthCompletionHandler() {
                 @Override
@@ -95,6 +87,11 @@ public class LocalAuthPlugin implements MethodCallHandler {
             biometrics.add("fingerprint");
           } else {
             biometrics.add("undefined");
+          }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+          FingerprintManager fm = registrar.context().getSystemService(FingerprintManager.class);
+          if(fm != null && fm.isHardwareDetected()) {
+            biometrics.add("fingerprint");
           }
         }
         result.success(biometrics);

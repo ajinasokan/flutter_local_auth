@@ -17,10 +17,3 @@ const String notAvailable = 'NotAvailable';
 
 /// Indicates the device operating system is not iOS or Android.
 const String otherOperatingSystem = 'OtherOperatingSystem';
-
-/// Indicates the API lock out due to too many attempts.
-const String lockedOut = 'LockedOut';
-
-/// Indicates the API being disabled due to too many lock outs.
-/// Strong authentication like PIN/Pattern/Password is required to unlock.
-const String permanentlyLockedOut = 'PermanentlyLockedOut';
