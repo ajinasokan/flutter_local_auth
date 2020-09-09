@@ -4,5 +4,5 @@ Some older devices with older versions of Android doesn't advertise the feature 
 
 ## References
 
-[https://github.com/flutter/flutter/issues/46227][https://github.com/flutter/flutter/issues/46227]
+[https://github.com/flutter/flutter/issues/46227](https://github.com/flutter/flutter/issues/46227)
 [https://issuetracker.google.com/issues/37132365](https://issuetracker.google.com/issues/37132365)
