@@ -1,4 +1,4 @@
-TAG=local_auth-v1.1.8
+TAG=local_auth-v1.1.7
 
 pull-upstream:
 	find . -maxdepth 1 -not -name ".git" -not -name ".gitignore" -not -name "Makefile" -exec rm -rf {} \;

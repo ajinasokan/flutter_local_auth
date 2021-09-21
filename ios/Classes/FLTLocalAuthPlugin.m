@@ -148,19 +148,23 @@
   _lastResult = nil;
   context.localizedFallbackTitle = @"";
 
-  if ([context canEvaluatePolicy:LAPolicyDeviceOwnerAuthentication error:&authError]) {
-    [context evaluatePolicy:kLAPolicyDeviceOwnerAuthentication
-            localizedReason:arguments[@"localizedReason"]
-                      reply:^(BOOL success, NSError *error) {
-                        dispatch_async(dispatch_get_main_queue(), ^{
-                          [self handleAuthReplyWithSuccess:success
-                                                     error:error
-                                          flutterArguments:arguments
-                                             flutterResult:result];
-                        });
-                      }];
+  if (@available(iOS 9.0, *)) {
+    if ([context canEvaluatePolicy:LAPolicyDeviceOwnerAuthentication error:&authError]) {
+      [context evaluatePolicy:kLAPolicyDeviceOwnerAuthentication
+              localizedReason:arguments[@"localizedReason"]
+                        reply:^(BOOL success, NSError *error) {
+                          dispatch_async(dispatch_get_main_queue(), ^{
+                            [self handleAuthReplyWithSuccess:success
+                                                       error:error
+                                            flutterArguments:arguments
+                                               flutterResult:result];
+                          });
+                        }];
+    } else {
+      [self handleErrors:authError flutterArguments:arguments withFlutterResult:result];
+    }
   } else {
-    [self handleErrors:authError flutterArguments:arguments withFlutterResult:result];
+    // Fallback on earlier versions
   }
 }
 
