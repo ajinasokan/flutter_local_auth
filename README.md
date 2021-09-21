@@ -1,4 +1,25 @@
-# local_auth
+# About this fork
+
+Some devices with older versions of Android doesn't advertise the feature flag `PackageManager.FEATURE_FINGERPRINT`. This makes the library think that the device doesn't have finger print sensor. This repo contains a patched version of local_auth lib with support for these devices. This fork also adds a [patch](https://github.com/flutter/plugins/pull/3807) to add an option to force use of only strong biometric authentication.
+
+References:
+
+[https://github.com/flutter/flutter/issues/46227](https://github.com/flutter/flutter/issues/46227)
+
+[https://issuetracker.google.com/issues/37132365](https://issuetracker.google.com/issues/37132365)
+
+## Usage
+
+Add to pubspec:
+
+```yaml
+    local_auth:
+        git:
+            url: https://github.com/ajinasokan/flutter_local_auth
+            ref: v1.0.0
+```
+
+## local_auth
 
 This Flutter plugin provides means to perform local, on-device authentication of
 the user.
