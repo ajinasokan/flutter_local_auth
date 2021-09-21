@@ -1,0 +1,284 @@
+From b7ef013809eb0fd3e5b5d609fbb37998433492ef Mon Sep 17 00:00:00 2001
+From: Chris Parton <chrisparton1991@gmail.com>
+Date: Wed, 14 Apr 2021 13:17:21 +1000
+Subject: [PATCH] [local_auth]: Add option to only use strong biometric
+ authentication systems on Android
+
+---
+ CHANGELOG.md              |  4 +++
+ .../localauth/AuthenticationHelper.java       |  6 +++-
+ .../plugins/localauth/LocalAuthPlugin.java    | 23 +++++++++----
+ example/lib/main.dart     | 32 +++++++++++++++----
+ lib/local_auth.dart       |  7 ++++
+ pubspec.yaml              |  2 +-
+ test/local_auth_test.dart | 30 +++++++++++++++++
+ 7 files changed, 89 insertions(+), 15 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index f6c38489d8b..791c891eaeb 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,3 +1,7 @@
++## 1.1.5
++
++* Add `strongAuthenticatorsOnly` flag to prevent authentication with weak biometric systems on Android.
++
+ ## 1.1.4
+ 
+ * Add debug assertion that `localizedReason` in `LocalAuthentication.authenticateWithBiometrics`  must not be empty.
+diff --git a/android/src/main/java/io/flutter/plugins/localauth/AuthenticationHelper.java b/android/src/main/java/io/flutter/plugins/localauth/AuthenticationHelper.java
+index 2b825c6d1f3..291cda196af 100644
+--- a/android/src/main/java/io/flutter/plugins/localauth/AuthenticationHelper.java
++++ b/android/src/main/java/io/flutter/plugins/localauth/AuthenticationHelper.java
+@@ -20,6 +20,7 @@
+ import android.view.View;
+ import android.widget.TextView;
+ import androidx.annotation.NonNull;
++import androidx.biometric.BiometricManager.Authenticators;
+ import androidx.biometric.BiometricPrompt;
+ import androidx.fragment.app.FragmentActivity;
+ import androidx.lifecycle.DefaultLifecycleObserver;
+@@ -87,9 +88,12 @@
+             .setDescription((String) call.argument("localizedReason"))
+             .setTitle((String) call.argument("signInTitle"))
+             .setSubtitle((String) call.argument("biometricHint"))
+-            .setConfirmationRequired((Boolean) call.argument("sensitiveTransaction"))
+             .setConfirmationRequired((Boolean) call.argument("sensitiveTransaction"));
+ 
++    if ((boolean) call.argument("strongAuthenticatorsOnly")) {
++      promptBuilder.setAllowedAuthenticators(Authenticators.BIOMETRIC_STRONG);
++    }
++
+     if (allowCredentials) {
+       promptBuilder.setDeviceCredentialAllowed(true);
+     } else {
+diff --git a/android/src/main/java/io/flutter/plugins/localauth/LocalAuthPlugin.java b/android/src/main/java/io/flutter/plugins/localauth/LocalAuthPlugin.java
+index 7ed9a7ea324..1c2a555dd8b 100644
+--- a/android/src/main/java/io/flutter/plugins/localauth/LocalAuthPlugin.java
++++ b/android/src/main/java/io/flutter/plugins/localauth/LocalAuthPlugin.java
+@@ -16,6 +16,7 @@
+ import android.os.Build;
+ import androidx.annotation.NonNull;
+ import androidx.biometric.BiometricManager;
++import androidx.biometric.BiometricManager.Authenticators;
+ import androidx.fragment.app.FragmentActivity;
+ import androidx.lifecycle.Lifecycle;
+ import io.flutter.embedding.engine.plugins.FlutterPlugin;
+@@ -167,8 +168,9 @@ public void onError(String code, String error) {
+     // if is biometricOnly try biometric prompt - might not work
+     boolean isBiometricOnly = call.argument("biometricOnly");
+     if (isBiometricOnly) {
+-      if (!canAuthenticateWithBiometrics()) {
+-        if (!hasBiometricHardware()) {
++      boolean strongAuthenticatorsOnly = call.argument("strongAuthenticatorsOnly");
++      if (!canAuthenticateWithBiometrics(strongAuthenticatorsOnly)) {
++        if (!hasBiometricHardware(strongAuthenticatorsOnly)) {
+           completionHandler.onError("NoHardware", "No biometric hardware found");
+         }
+         completionHandler.onError("NotEnrolled", "No biometrics enrolled on this device.");
+@@ -291,14 +293,23 @@ private boolean isDeviceSupported() {
+     return (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && keyguardManager.isDeviceSecure());
+   }
+ 
+-  private boolean canAuthenticateWithBiometrics() {
++  private boolean canAuthenticateWithBiometrics(boolean strongAuthenticatorsOnly) {
+     if (biometricManager == null) return false;
+-    return biometricManager.canAuthenticate() == BiometricManager.BIOMETRIC_SUCCESS;
++    int authenticators = getAuthenticators(strongAuthenticatorsOnly);
++    return biometricManager.canAuthenticate(authenticators) == BiometricManager.BIOMETRIC_SUCCESS;
+   }
+ 
+-  private boolean hasBiometricHardware() {
++  private boolean hasBiometricHardware(boolean strongAuthenticatorsOnly) {
+     if (biometricManager == null) return false;
+-    return biometricManager.canAuthenticate() != BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE;
++    int authenticators = getAuthenticators(strongAuthenticatorsOnly);
++    return biometricManager.canAuthenticate(authenticators)
++        != BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE;
++  }
++
++  private int getAuthenticators(boolean strongAuthenticatorsOnly) {
++    return strongAuthenticatorsOnly
++        ? Authenticators.BIOMETRIC_STRONG
++        : Authenticators.BIOMETRIC_WEAK;
+   }
+ 
+   private void isDeviceSupported(Result result) {
+diff --git a/example/lib/main.dart b/example/lib/main.dart
+index b6b6f327842..35da1f969d9 100644
+--- a/example/lib/main.dart
++++ b/example/lib/main.dart
+@@ -95,7 +95,7 @@ class _MyAppState extends State<MyApp> {
+         () => _authorized = authenticated ? 'Authorized' : 'Not Authorized');
+   }
+ 
+-  Future<void> _authenticateWithBiometrics() async {
++  Future<void> _authenticateWithBiometrics({bool strongOnly = true}) async {
+     bool authenticated = false;
+     try {
+       setState(() {
+@@ -103,11 +103,13 @@ class _MyAppState extends State<MyApp> {
+         _authorized = 'Authenticating';
+       });
+       authenticated = await auth.authenticate(
+-          localizedReason:
+-              'Scan your fingerprint (or face or whatever) to authenticate',
+-          useErrorDialogs: true,
+-          stickyAuth: true,
+-          biometricOnly: true);
++        localizedReason:
++            'Scan your fingerprint (or face or whatever) to authenticate',
++        useErrorDialogs: true,
++        stickyAuth: true,
++        biometricOnly: true,
++        strongAuthenticatorsOnly: strongOnly,
++      );
+       setState(() {
+         _isAuthenticating = false;
+         _authorized = 'Authenticating';
+@@ -199,7 +201,23 @@ class _MyAppState extends State<MyApp> {
+                                 Icon(Icons.fingerprint),
+                               ],
+                             ),
+-                            onPressed: _authenticateWithBiometrics,
++                            onPressed: () => _authenticateWithBiometrics(
++                              strongOnly: false,
++                            ),
++                          ),
++                          ElevatedButton(
++                            child: Row(
++                              mainAxisSize: MainAxisSize.min,
++                              children: [
++                                Text(_isAuthenticating
++                                    ? 'Cancel'
++                                    : 'Authenticate: strong biometrics only'),
++                                Icon(Icons.fingerprint),
++                              ],
++                            ),
++                            onPressed: () => _authenticateWithBiometrics(
++                              strongOnly: true,
++                            ),
+                           ),
+                         ],
+                       ),
+diff --git a/lib/local_auth.dart b/lib/local_auth.dart
+index 0b75a83d402..ed8d8018121 100644
+--- a/lib/local_auth.dart
++++ b/lib/local_auth.dart
+@@ -87,6 +87,11 @@ class LocalAuthentication {
+   /// Setting [biometricOnly] to true prevents authenticates from using non-biometric
+   /// local authentication such as pin, passcode, and passcode.
+   ///
++  /// Setting [strongAuthenticatorsOnly] to true disables biometric authentication
++  /// mechanisms on Android that are not deemed secure. For instance, many Android
++  /// facial recognition systems are easily fooled, and should not be considered
++  /// secure.
++  ///
+   /// Throws an [PlatformException] if there were technical problems with local
+   /// authentication (e.g. lack of relevant hardware). This might throw
+   /// [PlatformException] with error code [otherOperatingSystem] on the iOS
+@@ -98,6 +103,7 @@ class LocalAuthentication {
+     AndroidAuthMessages androidAuthStrings = const AndroidAuthMessages(),
+     IOSAuthMessages iOSAuthStrings = const IOSAuthMessages(),
+     bool sensitiveTransaction = true,
++    bool strongAuthenticatorsOnly = false,
+     bool biometricOnly = false,
+   }) async {
+     assert(localizedReason.isNotEmpty);
+@@ -107,6 +113,7 @@ class LocalAuthentication {
+       'useErrorDialogs': useErrorDialogs,
+       'stickyAuth': stickyAuth,
+       'sensitiveTransaction': sensitiveTransaction,
++      'strongAuthenticatorsOnly': strongAuthenticatorsOnly,
+       'biometricOnly': biometricOnly,
+     };
+     if (_platform.isIOS) {
+diff --git a/pubspec.yaml b/pubspec.yaml
+index eccc2f812a8..3b59bab9c54 100644
+--- a/pubspec.yaml
++++ b/pubspec.yaml
+@@ -2,7 +2,7 @@ name: local_auth
+ description: Flutter plugin for Android and iOS devices to allow local
+   authentication via fingerprint, touch ID, face ID, passcode, pin, or pattern.
+ homepage: https://github.com/flutter/plugins/tree/master/packages/local_auth
+-version: 1.1.4
++version: 1.1.5
+ 
+ flutter:
+   plugin:
+diff --git a/test/local_auth_test.dart b/test/local_auth_test.dart
+index b24de8bd3c1..01f7ea1a108 100644
+--- a/test/local_auth_test.dart
++++ b/test/local_auth_test.dart
+@@ -47,6 +47,7 @@ void main() {
+                   'stickyAuth': false,
+                   'sensitiveTransaction': true,
+                   'biometricOnly': true,
++                  'strongAuthenticatorsOnly': false,
+                 }..addAll(const AndroidAuthMessages().args)),
+           ],
+         );
+@@ -68,6 +69,7 @@ void main() {
+                   'stickyAuth': false,
+                   'sensitiveTransaction': true,
+                   'biometricOnly': true,
++                  'strongAuthenticatorsOnly': false,
+                 }..addAll(const IOSAuthMessages().args)),
+           ],
+         );
+@@ -102,6 +104,7 @@ void main() {
+                   'stickyAuth': false,
+                   'sensitiveTransaction': false,
+                   'biometricOnly': true,
++                  'strongAuthenticatorsOnly': false,
+                 }..addAll(const AndroidAuthMessages().args)),
+           ],
+         );
+@@ -124,6 +127,7 @@ void main() {
+                   'stickyAuth': false,
+                   'sensitiveTransaction': true,
+                   'biometricOnly': false,
++                  'strongAuthenticatorsOnly': false,
+                 }..addAll(const AndroidAuthMessages().args)),
+           ],
+         );
+@@ -144,6 +148,7 @@ void main() {
+                   'stickyAuth': false,
+                   'sensitiveTransaction': true,
+                   'biometricOnly': false,
++                  'strongAuthenticatorsOnly': false,
+                 }..addAll(const IOSAuthMessages().args)),
+           ],
+         );
+@@ -166,6 +171,31 @@ void main() {
+                   'stickyAuth': false,
+                   'sensitiveTransaction': false,
+                   'biometricOnly': false,
++                  'strongAuthenticatorsOnly': false,
++                }..addAll(const AndroidAuthMessages().args)),
++          ],
++        );
++      });
++
++      test('authenticate with strong authenticators.', () async {
++        setMockPathProviderPlatform(FakePlatform(operatingSystem: 'android'));
++        await localAuthentication.authenticate(
++          localizedReason: 'Insecure',
++          sensitiveTransaction: false,
++          useErrorDialogs: false,
++          strongAuthenticatorsOnly: true,
++        );
++        expect(
++          log,
++          <Matcher>[
++            isMethodCall('authenticate',
++                arguments: <String, dynamic>{
++                  'localizedReason': 'Insecure',
++                  'useErrorDialogs': false,
++                  'stickyAuth': false,
++                  'sensitiveTransaction': false,
++                  'biometricOnly': false,
++                  'strongAuthenticatorsOnly': true,
+                 }..addAll(const AndroidAuthMessages().args)),
+           ],
+         );
