@@ -194,7 +194,7 @@ public class LocalAuthPlugin implements MethodCallHandler, FlutterPlugin, Activi
 
     // API 23 - 28 with fingerprint
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && fingerprintManager != null) {
-      if (fingerprintManager.hasEnrolledFingerprints()) {
+      if (fingerprintManager.isHardwareDetected() && fingerprintManager.hasEnrolledFingerprints()) {
         authHelper =
             new AuthenticationHelper(
                 lifecycle, (FragmentActivity) activity, call, completionHandler, false);
