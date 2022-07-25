@@ -217,6 +217,21 @@ public class LocalAuthPlugin implements MethodCallHandler, FlutterPlugin, Activi
       return;
     }
 
+    // on android 5 isDeviceSecure doesn't work so use isKeyguardSecure which is combination
+    // of phone lock, pin, pattern or sim lock
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M
+            && keyguardManager != null
+            && keyguardManager.isKeyguardSecure()) {
+      String title = call.argument("signInTitle");
+      String reason = call.argument("localizedReason");
+      Intent authIntent = keyguardManager.createConfirmDeviceCredentialIntent(title, reason);
+
+      // save result for async response
+      lockRequestResult = result;
+      activity.startActivityForResult(authIntent, LOCK_REQUEST_CODE);
+      return;
+    }
+
     // Unable to authenticate
     result.error("NotSupported", "This device does not support required security features", null);
   }
@@ -292,6 +307,7 @@ public class LocalAuthPlugin implements MethodCallHandler, FlutterPlugin, Activi
 
   private boolean isDeviceSupported() {
     if (keyguardManager == null) return false;
+    else if  (Build.VERSION.SDK_INT < Build.VERSION_CODES.M && keyguardManager.isKeyguardSecure()) return true;
     return (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && keyguardManager.isDeviceSecure());
   }
 
