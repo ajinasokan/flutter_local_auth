@@ -185,6 +185,7 @@ public class LocalAuthPlugin implements MethodCallHandler, FlutterPlugin, Activi
 
     // API 29 and above
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      lockRequestResult = result;
       authHelper =
           new AuthenticationHelper(
               lifecycle, (FragmentActivity) activity, call, completionHandler, true);

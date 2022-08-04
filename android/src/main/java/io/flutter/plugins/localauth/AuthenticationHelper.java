@@ -7,10 +7,14 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Application;
+import android.app.KeyguardManager;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.DialogInterface.OnClickListener;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -133,6 +137,25 @@ class AuthenticationHelper extends BiometricPrompt.AuthenticationCallback
   @SuppressLint("SwitchIntDef")
   @Override
   public void onAuthenticationError(int errorCode, CharSequence errString) {
+    if(errorCode== BiometricPrompt.ERROR_HW_NOT_PRESENT && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M){
+      KeyguardManager km = (KeyguardManager) activity.getSystemService(Context.KEYGUARD_SERVICE);
+        if(km.isDeviceSecure()){
+            PackageManager packageManager = activity.getPackageManager();
+            if(packageManager.hasSystemFeature(PackageManager.FEATURE_SECURE_LOCK_SCREEN)) {
+                Intent createConfirmDeviceCredentialIntent = km.createConfirmDeviceCredentialIntent(null, null);
+                if (createConfirmDeviceCredentialIntent != null) {
+                    try {
+                        activity.startActivityForResult(createConfirmDeviceCredentialIntent, 221);
+                        stop();
+                        return;
+                    } catch (ActivityNotFoundException e) {
+
+                    }
+                }
+            }
+        }
+    }
+
     switch (errorCode) {
       case BiometricPrompt.ERROR_NO_DEVICE_CREDENTIAL:
         if (call.argument("useErrorDialogs")) {
