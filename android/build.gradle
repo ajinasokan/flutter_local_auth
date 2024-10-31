@@ -28,7 +28,10 @@ android {
         minSdkVersion 16
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
-    lintOptions {
+    
+    namespace 'io.flutter.plugins.localauth'
+
+    lint {
         disable 'InvalidPackage'
     }
 }
